@@ -35,6 +35,10 @@ def push_to_sqs(QueueURL, message, sessionAttributes):
                     'DataType': 'String',
                     'StringValue': json.dumps(sessionAttributes)
                 },
+                'sessionId': {
+                    'DataType': 'String',
+                    'StringValue': message['sessionId']
+                },
                 'Cuisine': {
                     'DataType': 'String',
                     'StringValue': message['Cuisine']
@@ -149,6 +153,18 @@ def get_restaurants(intent_request):
         use_history = get_slot(intent_request, 'use_history')
         
         #If we have a valid email address we will check for the email id in the Dynamodb for recent suggestions
+        table = dynamodb.Table("session_history")
+        user_history = table.query(KeyConditionExpression=Key('sessionId').eq(intent_request['sessionId']))
+        if user_history['Count'] and not use_history:
+            print(f"Your History {user_history}")
+            return elicit_slot(
+                            intent_request['sessionState'].get('sessionAttributes', {}),
+                           intent_request['sessionState']['intent']['name'],
+                           slots,
+                           'use_history',
+                           {'contentType': 'PlainText','content': 'Welcome back!! Are you in for the usual?'}
+
+
         if email_addr and is_valid_email(email_addr) and not use_history:
             table = dynamodb.Table("history")
             user_history = table.query(KeyConditionExpression=Key('email_id').eq(email_addr))
@@ -163,20 +179,42 @@ def get_restaurants(intent_request):
             else:
                 #No History available
                 pass
-        if use_history == 'Yes':
-            table = dynamodb.Table("history")
-            user_history = table.query(KeyConditionExpression=Key('email_id').eq(email_addr))['Items'][0]
+        if use_history == 'Yes' and not email_addr:
+            table = dynamodb.Table("session_history")
+            user_history = table.query(KeyConditionExpression=Key('sessionId').eq(intent_request['sessionId']))['Items'][0]
             last_loc = user_history['location']
             last_cuisine = user_history['cuisine']
             last_dining_time = user_history['time']
             last_party_size = user_history['party_size']
+            last_sessionId = user_history['sessionId']
+            last_email = user_history['email_id']
             
             slot_dict = {
                     'diningTime': last_dining_time,
                     'Cuisine': last_cuisine,
                     'location': last_loc,
                     'NumberOfGuests': last_party_size,
+                    'email': last_email,
                     'email': email_addr
+                    'sessionId':last_sessionId
+                }
+        if use_history == 'Yes' and email_addr:
+            table = dynamodb.Table("session_history")
+            user_history = table.scan(KeyConditionExpression=Key('sessionId').eq(intent_request['sessionId']))['Items'][0]
+            last_loc = user_history['location']
+            last_cuisine = user_history['cuisine']
+            last_dining_time = user_history['time']
+            last_party_size = user_history['party_size']
+            last_sessionId = user_history['sessionId']
+            last_email = user_history['email_id']
+            
+            slot_dict = {
+                    'diningTime': last_dining_time,
+                    'Cuisine': last_cuisine,
+                    'location': last_loc,
+                    'NumberOfGuests': last_party_size,
+                    'email': last_email,
+                    'sessionId':last_sessionId
                 }
     
 
@@ -236,7 +274,8 @@ def get_restaurants(intent_request):
         'Cuisine': cuisine,
         'location': location,
         'NumberOfGuests': num_people,
-        'email': email_addr
+        'email': email_addr,
+        'sessionId':intent_request['sessionId']
     }
     
 

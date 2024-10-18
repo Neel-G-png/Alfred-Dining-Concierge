@@ -69,15 +69,16 @@ def get_os_client():
     return client
 
 def save_history(dynamodb, user_slots):
-    email, cuisine, location, time, party_size = user_slots
+    email, cuisine, location, time, party_size, sessionId  = user_slots
     try:
-        hist_table = dynamodb.Table("history")
+        hist_table = dynamodb.Table("session_history")
         hist_table.put_item(Item = {
             "email_id" : email,
             "cuisine" : cuisine,
             "location" : location,
             "time" : time,
-            "party_size" : party_size
+            "party_size" : party_size,
+            "sessionId" : sessionId
         })
 
     except ClientError as e:
@@ -106,9 +107,10 @@ def lambda_handler(event, context):
         time = msg['MessageAttributes']['diningTime']['StringValue']
         email = msg['MessageAttributes']['email']['StringValue']
         party_size = msg['MessageAttributes']['NumberOfGuests']['StringValue']
+        sessionId = msg['MessageAttributes']['sessionId']['StringValue']
         
         #saving preference in history table in Dynamodb
-        save_history(dynamodb, (email, cuisine, location, time, party_size))
+        save_history(dynamodb, (email, cuisine, location, time, party_size, sessionId))
         
         
         index_name = 'restaurants'
