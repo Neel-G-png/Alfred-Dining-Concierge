@@ -3,7 +3,7 @@ import os
 import logging
 import json
 import boto3
-from boto3.dynamodb.conditions import Key
+from boto3.dynamodb.conditions import Key, Attr
 from botocore.exceptions import ClientError
 import re
 from dotenv import load_dotenv
@@ -166,8 +166,8 @@ def get_restaurants(intent_request):
 
 
         if email_addr and is_valid_email(email_addr) and not use_history:
-            table = dynamodb.Table("history")
-            user_history = table.query(KeyConditionExpression=Key('email_id').eq(email_addr))
+            table = dynamodb.Table("session_history")
+            user_history = table.scan(FilterExpression=Attr('email_id').eq(email_addr))
             if user_history['Count']:
                 return elicit_slot(
                                 intent_request['sessionState'].get('sessionAttributes', {}),
@@ -198,15 +198,41 @@ def get_restaurants(intent_request):
                     'email': email_addr
                     'sessionId':last_sessionId
                 }
+            # Send data to SQS queue
+            res = push_to_sqs(os.getenv("sqs_url"),
+                      slot_dict, intent_request['sessionState'].get('sessionAttributes', {}))
+            
+            text = f"Awesome! Sending recommendations based on your last choice. Cuisine: {last_cuisine} and Location: {last_loc}"
+            
+            #User wants to get recommendation based on usual choices
+            response = {
+                    'sessionState': {
+                        'dialogAction': {
+                            'type': 'Close'
+                        },
+                        'intent': {
+                            'name': intent_request['sessionState']['intent']['name'],
+                            'slots': intent_request['sessionState']['intent']['slots'],
+                            'state': 'Fulfilled'
+                        },
+                        'sessionAttributes': intent_request['sessionState'].get('sessionAttributes', {})
+                    },
+                    'messages': [{
+                        'contentType': 'PlainText',
+                        'content': text
+                    }],
+                    'sessionId': intent_request['sessionId']
+                }
+            return response
         if use_history == 'Yes' and email_addr:
             table = dynamodb.Table("session_history")
-            user_history = table.scan(KeyConditionExpression=Key('sessionId').eq(intent_request['sessionId']))['Items'][0]
+            user_history = table.scan(FilterExpression=Attr('email_id').eq(email_addr))['Items'][0]
             last_loc = user_history['location']
             last_cuisine = user_history['cuisine']
             last_dining_time = user_history['time']
             last_party_size = user_history['party_size']
             last_sessionId = user_history['sessionId']
-            last_email = user_history['email_id']
+            last_email = email_addr
             
             slot_dict = {
                     'diningTime': last_dining_time,
@@ -214,7 +240,7 @@ def get_restaurants(intent_request):
                     'location': last_loc,
                     'NumberOfGuests': last_party_size,
                     'email': last_email,
-                    'sessionId':last_sessionId
+                    'sessionId':intent_request['sessionId']
                 }
     
 
