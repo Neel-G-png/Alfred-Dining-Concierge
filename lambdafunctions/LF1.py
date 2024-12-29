@@ -162,7 +162,7 @@ def get_restaurants(intent_request):
                            intent_request['sessionState']['intent']['name'],
                            slots,
                            'use_history',
-                           {'contentType': 'PlainText','content': 'Welcome back!! Are you in for the usual?'}
+                           {'contentType': 'PlainText','content': 'Welcome back!! Are you in for the usual?'})
 
 
         if email_addr and is_valid_email(email_addr) and not use_history:
@@ -195,7 +195,7 @@ def get_restaurants(intent_request):
                     'location': last_loc,
                     'NumberOfGuests': last_party_size,
                     'email': last_email,
-                    'email': email_addr
+                    'email': email_addr,
                     'sessionId':last_sessionId
                 }
             # Send data to SQS queue
